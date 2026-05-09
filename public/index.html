@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bible Adventure — read the whole Bible, your own way</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">Bible Adventure</div>
+      <nav class="nav">
+        <a href="#" data-view="path"     class="nav-link active">Path</a>
+        <a href="#" data-view="progress" class="nav-link">Progress</a>
+        <a href="#" data-view="about"    class="nav-link">About</a>
+      </nav>
+      <div class="topbar-meta">
+        <span class="streak-pill" title="Current reading streak">
+          <span class="streak-dot"></span>
+          <span id="streak-days">0</span> day streak
+        </span>
+        <span class="score-pill" id="score-pill" title="Chapters read">0</span>
+        <div class="ai-wrap">
+          <button class="ai-btn" id="ai-btn" title="AI features (Groq)" aria-haspopup="true" aria-expanded="false">
+            <span class="ai-spark" aria-hidden="true">✦</span>
+            <span class="ai-btn-label">AI</span>
+            <span class="ai-dot" id="ai-dot" aria-hidden="true"></span>
+          </button>
+          <div class="ai-pop" id="ai-pop" hidden role="dialog" aria-label="AI settings">
+            <div class="ai-pop-title">AI features (Groq)</div>
+            <p class="ai-pop-desc">Generates short chapter summaries and a personalized reflection prompt for each chapter, using <code>llama-3.1-8b-instant</code>. Your key is stored only in this browser. Get a free key at <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com</a>.</p>
+            <input id="ai-key-input" type="password" placeholder="gsk_…" autocomplete="off" spellcheck="false" />
+            <div class="ai-pop-actions">
+              <button class="ghost ai-forget" id="ai-forget" hidden>forget key</button>
+              <span class="spacer"></span>
+              <button class="ghost" id="ai-pop-close">cancel</button>
+              <button class="primary" id="ai-save">save</button>
+            </div>
+            <div class="ai-pop-status" id="ai-pop-status"></div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ============ SEARCH OVERLAY ============ -->
+    <div class="search-overlay" id="search-overlay" aria-hidden="true">
+      <div class="search-backdrop" data-search-close></div>
+      <div class="search-panel" role="dialog" aria-label="Search">
+        <div class="search-input-row">
+          <span class="search-icon-lg" aria-hidden="true">⌕</span>
+          <input id="search-input" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="Find a chapter, book, or theme — try “Ps 23”, “love”, “Romans”…" />
+          <kbd class="search-esc">esc</kbd>
+        </div>
+        <div class="search-results" id="search-results"></div>
+        <div class="search-foot">
+          <span><kbd>↵</kbd> open</span>
+          <span><kbd>esc</kbd> close</span>
+          <span><kbd>⌘K</kbd> reopen</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ PATH (home) ============ -->
+    <main class="view view-path active" data-view="path">
+      <section class="hero">
+        <div class="hero-text">
+          <div class="kicker">Read the whole Bible. Choose your own path.</div>
+          <div class="finished-block">
+            <div class="eyebrow" id="finished-eyebrow">YOU JUST FINISHED</div>
+            <h1 class="finished-title" id="finished-title">Begin your adventure</h1>
+            <p class="finished-sub" id="finished-sub">Pick any chapter below to start. There is no wrong order.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="stats">
+        <div class="stat">
+          <div class="stat-value"><span id="stat-days">0</span><span class="stat-divider">/</span><span id="stat-days-total">0</span></div>
+          <div class="stat-label">days reading</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value"><span id="stat-chapters">0</span><span class="stat-divider">/</span>1,189</div>
+          <div class="stat-label">chapters</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value"><span id="stat-percent">0</span><span class="stat-unit">%</span></div>
+          <div class="stat-label">read of Bible</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value"><span id="stat-best">0</span></div>
+          <div class="stat-label">best streak</div>
+        </div>
+      </section>
+
+      <section class="graph-section">
+        <div class="graph-header">
+          <div class="graph-title">Where next?</div>
+          <button class="search-btn graph-search-btn" id="search-btn" title="Search the Bible (⌘K)">
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <span class="search-btn-label">jump to a chapter, book, or theme…</span>
+            <kbd class="search-kbd">⌘K</kbd>
+          </button>
+          <div class="legend" id="legend"></div>
+        </div>
+        <div class="graph-wrap">
+          <div class="graph-canvas">
+            <svg id="graph" viewBox="0 0 1200 560" preserveAspectRatio="xMidYMid meet"></svg>
+            <div id="graph-tooltip" class="graph-tooltip" hidden></div>
+          </div>
+          <aside class="suggestions" id="suggestions"></aside>
+        </div>
+        <div class="graph-foot">
+          <button class="ghost" id="reset-btn" title="Erase all progress">reset progress</button>
+          <div class="hint">click any chapter — read at your own pace</div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ============ PROGRESS ============ -->
+    <main class="view view-progress" data-view="progress">
+      <section class="progress-head">
+        <h2>Your progress</h2>
+        <p class="muted">Every book of the Bible. Tap a chapter to mark it read.</p>
+      </section>
+      <div id="books"></div>
+    </main>
+
+    <!-- ============ ABOUT ============ -->
+    <main class="view view-about" data-view="about">
+      <section class="about">
+        <h2>About Bible Adventure</h2>
+        <p>
+          A non-linear way to read scripture. Most reading plans march you straight through
+          from Genesis to Revelation — and most people quit somewhere in Leviticus.
+        </p>
+        <p>
+          Bible Adventure lets you choose your own path. The constellation shows every
+          chapter in the Bible. As you read, the dots light up. The app suggests where to
+          go next, mixing genres so you're never stuck slogging through a single book.
+        </p>
+        <p>
+          Your progress lives in your browser. Nothing is sent anywhere.
+        </p>
+        <p class="muted small">
+          Built with Claude Code. Inspired by Darren Rowse's Bible Adventure.
+        </p>
+      </section>
+    </main>
+
+    <!-- ============ READER MODAL ============ -->
+    <div class="modal" id="reader" aria-hidden="true">
+      <div class="modal-backdrop" data-close></div>
+      <div class="modal-card">
+        <header class="modal-head">
+          <div>
+            <div class="modal-eyebrow" id="reader-cat">—</div>
+            <h3 id="reader-title">—</h3>
+            <div class="modal-sub" id="reader-sub"></div>
+          </div>
+          <button class="icon-btn" data-close aria-label="Close">×</button>
+        </header>
+        <div class="modal-body" id="reader-body"></div>
+        <footer class="modal-foot">
+          <a class="ghost" id="reader-online" href="#" target="_blank" rel="noopener">read online ↗</a>
+          <span class="spacer"></span>
+          <button class="ghost" data-close>not yet</button>
+          <button class="primary" id="reader-mark">mark as read</button>
+        </footer>
+      </div>
+    </div>
+  </div>
+
+  <script src="bible-data.js"></script>
+  <script src="bible-detail.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

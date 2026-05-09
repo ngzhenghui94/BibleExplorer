@@ -1,0 +1,188 @@
+// Bible book metadata: name, abbreviation, chapter count, category, testament.
+// Categories are reading-genre groupings used for variety in recommendations
+// and color-coding on the graph.
+
+const CATEGORIES = {
+  law:        { label: "Law",        color: "#e8a44c" },
+  history:    { label: "History",    color: "#8aa6c1" },
+  wisdom:     { label: "Wisdom",     color: "#c084fc" },
+  poetry:     { label: "Poetry",     color: "#f87171" },
+  prophecy:   { label: "Prophecy",   color: "#5eead4" },
+  gospel:     { label: "Gospel",     color: "#fbbf24" },
+  epistle:    { label: "Epistle",    color: "#60a5fa" },
+  revelation: { label: "Revelation", color: "#f472b6" },
+};
+
+const BOOKS = [
+  // Old Testament
+  { name: "Genesis",         abbr: "Gen",   chapters: 50, category: "law",        testament: "OT" },
+  { name: "Exodus",          abbr: "Exod",  chapters: 40, category: "law",        testament: "OT" },
+  { name: "Leviticus",       abbr: "Lev",   chapters: 27, category: "law",        testament: "OT" },
+  { name: "Numbers",         abbr: "Num",   chapters: 36, category: "law",        testament: "OT" },
+  { name: "Deuteronomy",     abbr: "Deut",  chapters: 34, category: "law",        testament: "OT" },
+  { name: "Joshua",          abbr: "Josh",  chapters: 24, category: "history",    testament: "OT" },
+  { name: "Judges",          abbr: "Judg",  chapters: 21, category: "history",    testament: "OT" },
+  { name: "Ruth",            abbr: "Ruth",  chapters: 4,  category: "history",    testament: "OT" },
+  { name: "1 Samuel",        abbr: "1 Sam", chapters: 31, category: "history",    testament: "OT" },
+  { name: "2 Samuel",        abbr: "2 Sam", chapters: 24, category: "history",    testament: "OT" },
+  { name: "1 Kings",         abbr: "1 Kgs", chapters: 22, category: "history",    testament: "OT" },
+  { name: "2 Kings",         abbr: "2 Kgs", chapters: 25, category: "history",    testament: "OT" },
+  { name: "1 Chronicles",    abbr: "1 Chr", chapters: 29, category: "history",    testament: "OT" },
+  { name: "2 Chronicles",    abbr: "2 Chr", chapters: 36, category: "history",    testament: "OT" },
+  { name: "Ezra",            abbr: "Ezra",  chapters: 10, category: "history",    testament: "OT" },
+  { name: "Nehemiah",        abbr: "Neh",   chapters: 13, category: "history",    testament: "OT" },
+  { name: "Esther",          abbr: "Esth",  chapters: 10, category: "history",    testament: "OT" },
+  { name: "Job",             abbr: "Job",   chapters: 42, category: "wisdom",     testament: "OT" },
+  { name: "Psalms",          abbr: "Ps",    chapters: 150, category: "poetry",    testament: "OT" },
+  { name: "Proverbs",        abbr: "Prov",  chapters: 31, category: "wisdom",     testament: "OT" },
+  { name: "Ecclesiastes",    abbr: "Eccl", chapters: 12,  category: "wisdom",     testament: "OT" },
+  { name: "Song of Solomon", abbr: "Song",  chapters: 8,  category: "poetry",     testament: "OT" },
+  { name: "Isaiah",          abbr: "Isa",   chapters: 66, category: "prophecy",   testament: "OT" },
+  { name: "Jeremiah",        abbr: "Jer",   chapters: 52, category: "prophecy",   testament: "OT" },
+  { name: "Lamentations",    abbr: "Lam",   chapters: 5,  category: "poetry",     testament: "OT" },
+  { name: "Ezekiel",         abbr: "Ezek",  chapters: 48, category: "prophecy",   testament: "OT" },
+  { name: "Daniel",          abbr: "Dan",   chapters: 12, category: "prophecy",   testament: "OT" },
+  { name: "Hosea",           abbr: "Hos",   chapters: 14, category: "prophecy",   testament: "OT" },
+  { name: "Joel",            abbr: "Joel",  chapters: 3,  category: "prophecy",   testament: "OT" },
+  { name: "Amos",            abbr: "Amos",  chapters: 9,  category: "prophecy",   testament: "OT" },
+  { name: "Obadiah",         abbr: "Obad",  chapters: 1,  category: "prophecy",   testament: "OT" },
+  { name: "Jonah",           abbr: "Jonah", chapters: 4,  category: "prophecy",   testament: "OT" },
+  { name: "Micah",           abbr: "Mic",   chapters: 7,  category: "prophecy",   testament: "OT" },
+  { name: "Nahum",           abbr: "Nah",   chapters: 3,  category: "prophecy",   testament: "OT" },
+  { name: "Habakkuk",        abbr: "Hab",   chapters: 3,  category: "prophecy",   testament: "OT" },
+  { name: "Zephaniah",       abbr: "Zeph",  chapters: 3,  category: "prophecy",   testament: "OT" },
+  { name: "Haggai",           abbr: "Hag",   chapters: 2, category: "prophecy",   testament: "OT" },
+  { name: "Zechariah",       abbr: "Zech",  chapters: 14, category: "prophecy",   testament: "OT" },
+  { name: "Malachi",         abbr: "Mal",   chapters: 4,  category: "prophecy",   testament: "OT" },
+  // New Testament
+  { name: "Matthew",         abbr: "Matt",  chapters: 28, category: "gospel",     testament: "NT" },
+  { name: "Mark",            abbr: "Mark",  chapters: 16, category: "gospel",     testament: "NT" },
+  { name: "Luke",            abbr: "Luke",  chapters: 24, category: "gospel",     testament: "NT" },
+  { name: "John",            abbr: "John",  chapters: 21, category: "gospel",     testament: "NT" },
+  { name: "Acts",            abbr: "Acts",  chapters: 28, category: "gospel",     testament: "NT" },
+  { name: "Romans",          abbr: "Rom",   chapters: 16, category: "epistle",    testament: "NT" },
+  { name: "1 Corinthians",   abbr: "1 Cor", chapters: 16, category: "epistle",    testament: "NT" },
+  { name: "2 Corinthians",   abbr: "2 Cor", chapters: 13, category: "epistle",    testament: "NT" },
+  { name: "Galatians",       abbr: "Gal",   chapters: 6,  category: "epistle",    testament: "NT" },
+  { name: "Ephesians",       abbr: "Eph",   chapters: 6,  category: "epistle",    testament: "NT" },
+  { name: "Philippians",     abbr: "Phil",  chapters: 4,  category: "epistle",    testament: "NT" },
+  { name: "Colossians",      abbr: "Col",   chapters: 4,  category: "epistle",    testament: "NT" },
+  { name: "1 Thessalonians", abbr: "1 Th",  chapters: 5,  category: "epistle",    testament: "NT" },
+  { name: "2 Thessalonians", abbr: "2 Th",  chapters: 3,  category: "epistle",    testament: "NT" },
+  { name: "1 Timothy",       abbr: "1 Tim", chapters: 6,  category: "epistle",    testament: "NT" },
+  { name: "2 Timothy",       abbr: "2 Tim", chapters: 4,  category: "epistle",    testament: "NT" },
+  { name: "Titus",           abbr: "Titus", chapters: 3,  category: "epistle",    testament: "NT" },
+  { name: "Philemon",        abbr: "Phlm",  chapters: 1,  category: "epistle",    testament: "NT" },
+  { name: "Hebrews",         abbr: "Heb",   chapters: 13, category: "epistle",    testament: "NT" },
+  { name: "James",           abbr: "Jas",   chapters: 5,  category: "epistle",    testament: "NT" },
+  { name: "1 Peter",         abbr: "1 Pet", chapters: 5,  category: "epistle",    testament: "NT" },
+  { name: "2 Peter",         abbr: "2 Pet", chapters: 3,  category: "epistle",    testament: "NT" },
+  { name: "1 John",          abbr: "1 Jn",  chapters: 5,  category: "epistle",    testament: "NT" },
+  { name: "2 John",          abbr: "2 Jn",  chapters: 1,  category: "epistle",    testament: "NT" },
+  { name: "3 John",          abbr: "3 Jn",  chapters: 1,  category: "epistle",    testament: "NT" },
+  { name: "Jude",            abbr: "Jude",  chapters: 1,  category: "epistle",    testament: "NT" },
+  { name: "Revelation",      abbr: "Rev",   chapters: 22, category: "revelation", testament: "NT" },
+];
+
+// Hand-picked chapter highlights that show up as labels on the graph
+// when read, and as evergreen suggestions when nothing better fits.
+const NOTABLE_CHAPTERS = {
+  "Gen 1": "creation",
+  "Gen 3": "the fall",
+  "Gen 22": "the binding of Isaac",
+  "Exod 14": "parting the sea",
+  "Exod 20": "the ten commandments",
+  "Deut 6": "shema",
+  "Josh 1": "be strong and courageous",
+  "Ruth 1": "where you go, I will go",
+  "1 Sam 17": "David and Goliath",
+  "1 Kgs 19": "the still small voice",
+  "Job 38": "out of the whirlwind",
+  "Ps 1": "the two ways",
+  "Ps 22": "the cry of the cross",
+  "Ps 23": "the shepherd",
+  "Ps 51": "create in me a clean heart",
+  "Ps 91": "shelter of the most high",
+  "Ps 119": "the great alphabet",
+  "Prov 3": "trust in the Lord",
+  "Eccl 3": "a time for everything",
+  "Song 2": "my beloved is mine",
+  "Isa 6": "holy, holy, holy",
+  "Isa 40": "comfort, comfort",
+  "Isa 53": "the suffering servant",
+  "Isa 55": "come, all who thirst",
+  "Jer 29": "plans to prosper",
+  "Lam 3": "his mercies are new",
+  "Ezek 37": "the valley of dry bones",
+  "Dan 3": "the fiery furnace",
+  "Dan 7": "the son of man",
+  "Hos 11": "how can I give you up?",
+  "Jonah 2": "from the belly of the fish",
+  "Mic 6": "what does the Lord require?",
+  "Hab 3": "though the fig tree",
+  "Mal 4": "the day is coming",
+  "Matt 5": "the beatitudes",
+  "Matt 6": "the Lord's prayer",
+  "Matt 28": "go and make disciples",
+  "Mark 9": "transfiguration, glory",
+  "Mark 15": "the crucifixion",
+  "Luke 2": "born this day",
+  "Luke 15": "the prodigal son",
+  "Luke 24": "the road to Emmaus",
+  "John 1": "the word became flesh",
+  "John 3": "for God so loved",
+  "John 14": "the way, the truth, the life",
+  "John 17": "the high priestly prayer",
+  "Acts 2": "Pentecost",
+  "Acts 9": "the Damascus road",
+  "Rom 8": "no separation",
+  "Rom 12": "living sacrifice",
+  "1 Cor 1": "the foolishness of the cross",
+  "1 Cor 2": "the mind of Christ",
+  "1 Cor 13": "love never fails",
+  "1 Cor 15": "the resurrection",
+  "2 Cor 4": "treasure in jars of clay",
+  "Gal 5": "the fruit of the Spirit",
+  "Eph 2": "saved by grace",
+  "Eph 6": "the armor of God",
+  "Phil 2": "he humbled himself",
+  "Phil 4": "rejoice always",
+  "Col 1": "the supremacy of Christ",
+  "Heb 11": "the hall of faith",
+  "Heb 12": "fix your eyes on Jesus",
+  "Jas 1": "consider it pure joy",
+  "1 Pet 2": "a chosen people",
+  "1 Jn 4": "God is love",
+  "Rev 4": "the throne of heaven",
+  "Rev 21": "a new heaven and earth",
+  "Rev 22": "come, Lord Jesus",
+};
+
+// Flat array of every chapter (1,189 entries) with global index, book ref, etc.
+const ALL_CHAPTERS = (() => {
+  const list = [];
+  let globalIndex = 0;
+  BOOKS.forEach((book, bookIndex) => {
+    for (let c = 1; c <= book.chapters; c++) {
+      const id = `${book.abbr} ${c}`;
+      list.push({
+        id,
+        book: book.name,
+        bookAbbr: book.abbr,
+        bookIndex,
+        chapter: c,
+        category: book.category,
+        testament: book.testament,
+        globalIndex,
+        notable: NOTABLE_CHAPTERS[id] || null,
+      });
+      globalIndex++;
+    }
+  });
+  return list;
+})();
+
+const TOTAL_CHAPTERS = ALL_CHAPTERS.length; // 1,189
+
+// Lookup helpers
+const CHAPTER_BY_ID = Object.fromEntries(ALL_CHAPTERS.map(c => [c.id, c]));
