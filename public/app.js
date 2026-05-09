@@ -12,61 +12,43 @@
     bestStreak: 0,
   };
   let state = loadState();
-  let activeCategory = null; // legend filter, null = show all
+  let activeCategory = null;     // legend filter, null = show all
+  let selectedChapterId = null;  // single-click anchor — shows links from this node
+  let currentUser = null;        // populated from /api/me on boot
 
-  // ---------- AI (Groq) ----------
-  // BYO-key: the user supplies their own Groq key, stored in localStorage on
-  // their machine only. Never embed a key in this file.
-  const AI_KEY_STORAGE   = "bible-adventure:groq-key";
-  const AI_CACHE_STORAGE = "bible-adventure:ai-cache:v1";
-  const AI_MODEL         = "llama-3.1-8b-instant";
-  const AI_ENDPOINT      = "https://api.groq.com/openai/v1/chat/completions";
+  // ---------- AI (server-side proxy) ----------
+  // The Groq key lives on the server. The client only ever calls our own
+  // /api/ai/* endpoints, which require a valid session cookie. Reflections
+  // are personalized so we cache them only client-side; summaries are shared
+  // across users and cached server-side in Postgres.
+  const AI_REFLECTION_CACHE_STORAGE = "bible-adventure:ai-reflection-cache:v1";
 
-  function getAiKey() { try { return localStorage.getItem(AI_KEY_STORAGE) || ""; } catch { return ""; } }
-  function setAiKey(k) {
-    try {
-      if (k) localStorage.setItem(AI_KEY_STORAGE, k);
-      else localStorage.removeItem(AI_KEY_STORAGE);
-    } catch {}
-  }
-  function aiEnabled() { return Boolean(getAiKey()); }
-
-  let aiCache = (() => {
-    try { return JSON.parse(localStorage.getItem(AI_CACHE_STORAGE)) || {}; }
+  let aiReflectionCache = (() => {
+    try { return JSON.parse(localStorage.getItem(AI_REFLECTION_CACHE_STORAGE)) || {}; }
     catch { return {}; }
   })();
-  function saveAiCache() {
-    try { localStorage.setItem(AI_CACHE_STORAGE, JSON.stringify(aiCache)); } catch {}
+  function saveReflectionCache() {
+    try { localStorage.setItem(AI_REFLECTION_CACHE_STORAGE, JSON.stringify(aiReflectionCache)); } catch {}
   }
 
   const aiInflight = new Map(); // cacheKey -> Promise<string>
 
-  async function aiChat(systemPrompt, userPrompt, opts = {}) {
-    const key = getAiKey();
-    if (!key) throw new Error("missing-key");
-    const res = await fetch(AI_ENDPOINT, {
+  async function postJSON(url, body) {
+    const res = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user",   content: userPrompt   },
-        ],
-        temperature: opts.temperature ?? 0.7,
-        max_tokens:  opts.maxTokens   ?? 200,
-      }),
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(body),
     });
+    if (res.status === 401) {
+      location.href = "/login";
+      throw new Error("unauthenticated");
+    }
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new Error(`groq ${res.status}: ${text.slice(0, 240)}`);
+      throw new Error(`server ${res.status}: ${text.slice(0, 240)}`);
     }
-    const data = await res.json();
-    const content = data?.choices?.[0]?.message?.content || "";
-    return content.trim();
+    return res.json();
   }
 
   function recentReadIds(excludeId, n = 3) {
@@ -79,29 +61,18 @@
 
   function aiSummary(ch) {
     const cacheKey = `s:${ch.id}`;
-    if (aiCache[cacheKey]) return Promise.resolve(aiCache[cacheKey]);
     if (aiInflight.has(cacheKey)) return aiInflight.get(cacheKey);
 
     const info = (typeof BOOK_INFO !== "undefined") ? BOOK_INFO[ch.book] : null;
-    const sys =
-      "You write short, honest summaries of Bible chapters for a non-linear reading app. " +
-      "Output exactly two sentences, ~40 words total. Plain English. " +
-      "Paraphrase rather than quoting verses. Don't take sides on contested theological interpretations. " +
-      "No headings, no preface, no closing — just the two sentences.";
-    const usrParts = [
-      `Chapter: ${ch.book} ${ch.chapter}.`,
-      info ? `Book: ${info.theme} ${info.overview}` : "",
-      ch.notable ? `This chapter is known for: "${ch.notable}".` : "",
-      `Write 2 sentences summarizing what happens in ${ch.book} ${ch.chapter}.`,
-    ].filter(Boolean);
-
-    const p = aiChat(sys, usrParts.join("\n"), { maxTokens: 160, temperature: 0.4 })
-      .then(text => {
-        const cleaned = text.replace(/^["'`]|["'`]$/g, "").trim();
-        aiCache[cacheKey] = cleaned;
-        saveAiCache();
-        return cleaned;
-      })
+    const p = postJSON("/api/ai/summary", {
+      chapterId: ch.id,
+      book: ch.book,
+      chapter: ch.chapter,
+      theme: info?.theme || "",
+      overview: info?.overview || "",
+      notable: ch.notable || "",
+    })
+      .then(data => data.text)
       .finally(() => aiInflight.delete(cacheKey));
     aiInflight.set(cacheKey, p);
     return p;
@@ -109,37 +80,31 @@
 
   function aiReflection(ch) {
     const cacheKey = `r:${ch.id}`;
-    if (aiCache[cacheKey]) return Promise.resolve(aiCache[cacheKey]);
+    if (aiReflectionCache[cacheKey]) return Promise.resolve(aiReflectionCache[cacheKey]);
     if (aiInflight.has(cacheKey)) return aiInflight.get(cacheKey);
 
-    const recent = recentReadIds(ch.id, 3);
     const cat = CATEGORIES[ch.category]?.label || ch.category;
-    const sys =
-      "You write ONE short reflection question for a reader about to open a Bible chapter. " +
-      "Output ONLY the question — no preface, no quotes, no answer, no extra lines. " +
-      "Maximum 18 words. Concrete, personal, gentle. Do not quote scripture verbatim.";
-    const usrParts = [
-      `Chapter to read next: ${ch.book} ${ch.chapter} (${cat}).`,
-      ch.notable ? `Known for: "${ch.notable}".` : "",
-      recent.length
-        ? `Recently read: ${recent.join(", ")}. If natural, let the question quietly connect to what they just read.`
-        : "This is one of their first chapters in the app.",
-      `Write one reflection question for someone about to read ${ch.book} ${ch.chapter}.`,
-    ].filter(Boolean);
-
-    const p = aiChat(sys, usrParts.join("\n"), { maxTokens: 80, temperature: 0.85 })
-      .then(text => {
-        let t = text.split(/\n/)[0].trim();
-        t = t.replace(/^["'`]+|["'`]+$/g, "").trim();
-        if (!/[?]$/.test(t)) t = t.replace(/[.!]+$/, "") + "?";
-        aiCache[cacheKey] = t;
-        saveAiCache();
-        return t;
+    const p = postJSON("/api/ai/reflection", {
+      chapterId: ch.id,
+      book: ch.book,
+      chapter: ch.chapter,
+      category: cat,
+      notable: ch.notable || "",
+      recent: recentReadIds(ch.id, 3),
+    })
+      .then(data => {
+        aiReflectionCache[cacheKey] = data.text;
+        saveReflectionCache();
+        return data.text;
       })
       .finally(() => aiInflight.delete(cacheKey));
     aiInflight.set(cacheKey, p);
     return p;
   }
+
+  // Signed-in users always have AI; the function stays for places that gate
+  // UI on it (and to make a future "AI off" tier easy to add).
+  function aiEnabled() { return true; }
 
   function loadState() {
     try {
@@ -324,6 +289,11 @@
   const graphEl = document.getElementById("graph");
   const tooltipEl = document.getElementById("graph-tooltip");
 
+  // Click on empty graph background clears any node selection.
+  graphEl.addEventListener("click", e => {
+    if (e.target === graphEl) clearSelection();
+  });
+
   function showTooltip(ch, e) {
     if (!tooltipEl) return;
     const cat = CATEGORIES[ch.category];
@@ -358,19 +328,24 @@
   function renderGraph(recs) {
     graphEl.innerHTML = "";
 
-    // links from current to recommendations
-    const current = state.lastChapter ? CHAPTER_BY_ID[state.lastChapter] : null;
-    if (current && recs.length) {
-      const cp = LAYOUT.positions[current.id];
+    // The "anchor" is the node we draw outgoing links from. Selection (single
+    // click) takes precedence over current (last read) so the user can
+    // explore links from any node without losing where they were.
+    const current  = state.lastChapter   ? CHAPTER_BY_ID[state.lastChapter]   : null;
+    const selected = selectedChapterId   ? CHAPTER_BY_ID[selectedChapterId]   : null;
+    const anchor   = selected || current;
+
+    if (anchor && recs.length) {
+      const cp = LAYOUT.positions[anchor.id];
       recs.forEach(r => {
         const rp = LAYOUT.positions[r.chapter.id];
         const midX = (cp.x + rp.x) / 2;
         const midY = (cp.y + rp.y) / 2 - 30;
         const path = el("path", {
           d: `M ${cp.x} ${cp.y} Q ${midX} ${midY} ${rp.x} ${rp.y}`,
-          class: "link",
+          class: "link" + (selected ? " link-selected" : ""),
         });
-        if (activeCategory && r.chapter.category !== activeCategory && current.category !== activeCategory) {
+        if (activeCategory && r.chapter.category !== activeCategory && anchor.category !== activeCategory) {
           path.style.opacity = "0.08";
         }
         graphEl.appendChild(path);
@@ -381,21 +356,32 @@
     const recIds = new Set(recs.map(r => r.chapter.id));
     ALL_CHAPTERS.forEach(ch => {
       const p = LAYOUT.positions[ch.id];
-      const isCurrent = current && current.id === ch.id;
-      const isRead = chapterIsRead(ch.id);
+      const isCurrent   = current && current.id === ch.id;
+      const isSelected  = selected && selected.id === ch.id;
+      const isRead      = chapterIsRead(ch.id);
       const isSuggested = recIds.has(ch.id);
-      const isMatch = !activeCategory || ch.category === activeCategory;
-      const color = CATEGORIES[ch.category].color;
+      const isMatch     = !activeCategory || ch.category === activeCategory;
+      const color       = CATEGORIES[ch.category].color;
 
-      const baseR = isCurrent ? 9 : isSuggested ? 7 : isRead ? 5.5 : 4;
+      const baseR = isSelected ? 9 : isCurrent ? 9 : isSuggested ? 7 : isRead ? 5.5 : 4;
       const r = activeCategory
         ? (isMatch ? Math.max(baseR, 5.5) : 2.5)
         : baseR;
       let cls = "node node-base";
-      if (isRead) cls = "node node-read";
+      if (isRead)      cls = "node node-read";
       if (isSuggested) cls = "node node-suggested";
-      if (isCurrent) cls = "node node-current";
+      if (isCurrent)   cls = "node node-current";
+      if (isSelected)  cls = "node node-selected";
       if (activeCategory) cls += isMatch ? " node-match" : " node-fade";
+
+      // selected ring — drawn under the suggested ring so colors stack cleanly
+      if (isSelected) {
+        const sring = el("circle", {
+          cx: p.x, cy: p.y, r: 14,
+          class: "node-selected-ring",
+        });
+        graphEl.appendChild(sring);
+      }
 
       // suggested ring (skip when filtered out so the highlight stays clean)
       if (isSuggested && isMatch) {
@@ -407,16 +393,16 @@
       }
 
       const styleParts = [];
-      if (isCurrent) styleParts.push(`color:${color}`);
+      if (isCurrent || isSelected) styleParts.push(`color:${color}`);
       if (activeCategory && !isMatch) styleParts.push("opacity:0.1");
       const node = el("circle", {
         cx: p.x, cy: p.y, r,
         class: cls,
         "data-id": ch.id,
-        fill: isRead || isCurrent ? color : (activeCategory && isMatch ? color : "#2a3658"),
+        fill: isRead || isCurrent || isSelected ? color : (activeCategory && isMatch ? color : "#2a3658"),
         style: styleParts.join(";"),
       });
-      node.addEventListener("click", () => openReader(ch.id));
+      bindNodeInteractions(node, ch);
       graphEl.appendChild(node);
 
       // generous transparent hit area on top so the click target is forgiving
@@ -426,11 +412,10 @@
         class: "node-hit",
         "data-id": ch.id,
       });
-      hit.addEventListener("click", () => openReader(ch.id));
+      bindNodeInteractions(hit, ch);
       hit.addEventListener("mouseenter", e => showTooltip(ch, e));
       hit.addEventListener("mousemove", moveTooltip);
       hit.addEventListener("mouseleave", hideTooltip);
-      // native title fallback for accessibility
       const title = el("title", {});
       title.textContent = ch.notable ? `${ch.id} — ${ch.notable}` : ch.id;
       hit.appendChild(title);
@@ -488,7 +473,8 @@
       const t = el("title", {});
       t.textContent = book.name;
       lab.appendChild(t);
-      lab.addEventListener("click", () => {
+      lab.addEventListener("click", e => {
+        e.stopPropagation();
         for (let c = 1; c <= book.chapters; c++) {
           const id = `${book.abbr} ${c}`;
           if (!chapterIsRead(id)) { openReader(id); return; }
@@ -500,7 +486,7 @@
 
     // labels for suggestions and current — alternate above/below so dense
     // clusters don't stack labels on top of each other, push past the ring.
-    if (current) {
+    if (current && (!selected || selected.id !== current.id)) {
       const cp = LAYOUT.positions[current.id];
       const lab = el("text", {
         x: cp.x, y: cp.y + 28,
@@ -508,6 +494,16 @@
         class: "current-label",
       });
       lab.textContent = current.id;
+      graphEl.appendChild(lab);
+    }
+    if (selected) {
+      const sp = LAYOUT.positions[selected.id];
+      const lab = el("text", {
+        x: sp.x, y: sp.y + 28,
+        "text-anchor": "middle",
+        class: "selected-label",
+      });
+      lab.textContent = selected.id + (selected.notable ? ` — ${selected.notable}` : "");
       graphEl.appendChild(lab);
     }
     recs.forEach((r, i) => {
@@ -534,6 +530,38 @@
       if (v != null && v !== "") node.setAttribute(k, v);
     }
     return node;
+  }
+
+  // Single click selects the node (re-renders the graph with links flowing
+  // out of it). Double click opens the reader. We schedule the single-click
+  // action behind a short timer so dblclick can cancel it.
+  const DBLCLICK_MS = 220;
+  function bindNodeInteractions(elem, ch) {
+    let timer = null;
+    elem.addEventListener("click", e => {
+      e.stopPropagation();
+      if (timer) return; // a second click is coming via dblclick
+      timer = setTimeout(() => {
+        timer = null;
+        selectChapter(ch.id);
+      }, DBLCLICK_MS);
+    });
+    elem.addEventListener("dblclick", e => {
+      e.stopPropagation();
+      if (timer) { clearTimeout(timer); timer = null; }
+      openReader(ch.id);
+    });
+  }
+
+  function selectChapter(id) {
+    // Clicking the same node toggles selection off.
+    selectedChapterId = (selectedChapterId === id) ? null : id;
+    renderAll();
+  }
+  function clearSelection() {
+    if (!selectedChapterId) return;
+    selectedChapterId = null;
+    renderAll();
   }
 
   // ---------- rendering: panels ----------
@@ -752,10 +780,9 @@
 
   function aiFriendlyError(err) {
     const msg = String(err?.message || err);
-    if (msg.includes("401") || msg.includes("invalid_api_key")) return "AI key was rejected — open AI settings to fix.";
-    if (msg.includes("429")) return "AI rate limit hit — try again in a moment.";
-    if (msg.includes("missing-key")) return "Add a Groq key in AI settings to use this.";
-    return "AI request failed. Check connection or AI settings.";
+    if (msg.includes("429") || msg.includes("502")) return "AI is busy — try again in a moment.";
+    if (msg.includes("unauthenticated")) return "Session expired — please sign in again.";
+    return "AI request failed. Please try again.";
   }
 
   function bibleGatewayUrl(ch) {
@@ -1059,7 +1086,8 @@
 
   // ---------- master render ----------
   function renderAll() {
-    const recs = pickRecommendations(state.lastChapter);
+    const anchorId = selectedChapterId || state.lastChapter;
+    const recs = pickRecommendations(anchorId);
     renderHero();
     renderStats();
     renderLegend();
@@ -1079,7 +1107,9 @@
   });
   modal.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", closeReader));
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape" && modal.classList.contains("open")) closeReader();
+    if (e.key !== "Escape") return;
+    if (modal.classList.contains("open")) { closeReader(); return; }
+    if (selectedChapterId) clearSelection();
   });
   document.getElementById("reader-mark").addEventListener("click", toggleRead);
   document.getElementById("reset-btn").addEventListener("click", () => {
@@ -1089,86 +1119,77 @@
     renderAll();
   });
 
-  // ---------- AI settings popover ----------
-  const aiBtn      = document.getElementById("ai-btn");
-  const aiPop      = document.getElementById("ai-pop");
-  const aiKeyInput = document.getElementById("ai-key-input");
-  const aiSave     = document.getElementById("ai-save");
-  const aiForget   = document.getElementById("ai-forget");
-  const aiPopClose = document.getElementById("ai-pop-close");
-  const aiStatus   = document.getElementById("ai-pop-status");
-  const aiDot      = document.getElementById("ai-dot");
+  // ---------- user menu ----------
+  const userBtn    = document.getElementById("user-btn");
+  const userPop    = document.getElementById("user-pop");
+  const userAvatar = document.getElementById("user-avatar");
+  const userName   = document.getElementById("user-name");
+  const popAvatar  = document.getElementById("user-pop-avatar");
+  const popName    = document.getElementById("user-pop-name");
+  const popEmail   = document.getElementById("user-pop-email");
+  const logoutBtn  = document.getElementById("logout-btn");
 
-  function refreshAiButton() {
-    const on = aiEnabled();
-    aiBtn.classList.toggle("on", on);
-    aiBtn.title = on ? "AI features on (click to manage)" : "AI features off — click to add a Groq key";
-    aiDot.classList.toggle("on", on);
-    aiForget.hidden = !on;
+  function fallbackAvatar(text) {
+    const t = (text || "?").slice(0, 1).toUpperCase();
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'>
+      <rect width='40' height='40' rx='20' fill='%23243154'/>
+      <text x='20' y='25' text-anchor='middle' font-family='Inter,sans-serif' font-size='16' font-weight='600' fill='%23e8edf7'>${t}</text>
+    </svg>`;
+    return "data:image/svg+xml;utf8," + svg.replace(/\s+/g, " ");
   }
 
-  function openAiPop() {
-    aiKeyInput.value = "";
-    aiKeyInput.placeholder = aiEnabled() ? "key saved — paste a new one to replace" : "gsk_…";
-    aiStatus.textContent = "";
-    aiStatus.className = "ai-pop-status";
-    aiPop.hidden = false;
-    aiBtn.setAttribute("aria-expanded", "true");
-    setTimeout(() => aiKeyInput.focus(), 0);
+  function applyUser(user) {
+    currentUser = user;
+    const display = user.name || (user.email ? user.email.split("@")[0] : "you");
+    const pic = user.picture || fallbackAvatar(display);
+    userAvatar.src = pic;
+    userAvatar.alt = display;
+    popAvatar.src  = pic;
+    popAvatar.alt  = display;
+    userName.textContent = display;
+    popName.textContent  = user.name || display;
+    popEmail.textContent = user.email || "";
   }
-  function closeAiPop() {
-    aiPop.hidden = true;
-    aiBtn.setAttribute("aria-expanded", "false");
-  }
-  aiBtn.addEventListener("click", e => {
+
+  function openUserPop()  { userPop.hidden = false; userBtn.setAttribute("aria-expanded", "true"); }
+  function closeUserPop() { userPop.hidden = true;  userBtn.setAttribute("aria-expanded", "false"); }
+
+  userBtn.addEventListener("click", e => {
     e.stopPropagation();
-    if (aiPop.hidden) openAiPop(); else closeAiPop();
+    if (userPop.hidden) openUserPop(); else closeUserPop();
   });
-  aiPopClose.addEventListener("click", closeAiPop);
-  aiPop.addEventListener("click", e => e.stopPropagation());
+  userPop.addEventListener("click", e => e.stopPropagation());
   document.addEventListener("click", e => {
-    if (!aiPop.hidden && !aiPop.contains(e.target) && e.target !== aiBtn) closeAiPop();
+    if (!userPop.hidden && !userPop.contains(e.target) && e.target !== userBtn) closeUserPop();
   });
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape" && !aiPop.hidden) closeAiPop();
+    if (e.key === "Escape" && !userPop.hidden) closeUserPop();
   });
-
-  aiSave.addEventListener("click", async () => {
-    const key = aiKeyInput.value.trim();
-    if (!key) {
-      aiStatus.textContent = "paste a key first";
-      aiStatus.className = "ai-pop-status err";
-      return;
-    }
-    aiStatus.textContent = "checking key…";
-    aiStatus.className = "ai-pop-status";
-    // try a tiny request to validate
-    setAiKey(key);
+  logoutBtn.addEventListener("click", async () => {
     try {
-      await aiChat(
-        "Reply with the single word: ok.",
-        "ping",
-        { maxTokens: 4, temperature: 0 }
-      );
-      aiStatus.textContent = "key saved — AI features are on.";
-      aiStatus.className = "ai-pop-status ok";
-      refreshAiButton();
-      setTimeout(closeAiPop, 800);
-    } catch (err) {
-      setAiKey(""); // don't keep a bad key
-      aiStatus.textContent = aiFriendlyError(err);
-      aiStatus.className = "ai-pop-status err";
-      refreshAiButton();
-    }
-  });
-  aiForget.addEventListener("click", () => {
-    setAiKey("");
-    aiStatus.textContent = "key removed.";
-    aiStatus.className = "ai-pop-status";
-    refreshAiButton();
+      await fetch("/auth/logout", { method: "POST", credentials: "same-origin" });
+    } catch {}
+    location.href = "/login";
   });
 
-  refreshAiButton();
-
+  // ---------- boot ----------
+  // Render the static UI immediately so the screen isn't blank, then resolve
+  // the user. If /api/me 401s, the postJSON helper would bounce, but we use
+  // a plain fetch here so we can show a clearer state.
   renderAll();
+
+  fetch("/api/me", { credentials: "same-origin" })
+    .then(res => {
+      if (res.status === 401) { location.href = "/login"; return null; }
+      if (!res.ok) throw new Error("me " + res.status);
+      return res.json();
+    })
+    .then(user => {
+      if (user) applyUser(user);
+    })
+    .catch(err => {
+      console.error("[boot] /api/me failed:", err);
+      // Soft fallback so the app still works for the rest of the session.
+      applyUser({ name: "you", email: "", picture: "" });
+    });
 })();

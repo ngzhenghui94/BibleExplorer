@@ -24,23 +24,22 @@
           <span id="streak-days">0</span> day streak
         </span>
         <span class="score-pill" id="score-pill" title="Chapters read">0</span>
-        <div class="ai-wrap">
-          <button class="ai-btn" id="ai-btn" title="AI features (Groq)" aria-haspopup="true" aria-expanded="false">
-            <span class="ai-spark" aria-hidden="true">✦</span>
-            <span class="ai-btn-label">AI</span>
-            <span class="ai-dot" id="ai-dot" aria-hidden="true"></span>
+        <div class="user-wrap">
+          <button class="user-btn" id="user-btn" aria-haspopup="true" aria-expanded="false" title="Account">
+            <img class="user-avatar" id="user-avatar" alt="" />
+            <span class="user-name" id="user-name">…</span>
+            <span class="user-caret" aria-hidden="true">▾</span>
           </button>
-          <div class="ai-pop" id="ai-pop" hidden role="dialog" aria-label="AI settings">
-            <div class="ai-pop-title">AI features (Groq)</div>
-            <p class="ai-pop-desc">Generates short chapter summaries and a personalized reflection prompt for each chapter, using <code>llama-3.1-8b-instant</code>. Your key is stored only in this browser. Get a free key at <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com</a>.</p>
-            <input id="ai-key-input" type="password" placeholder="gsk_…" autocomplete="off" spellcheck="false" />
-            <div class="ai-pop-actions">
-              <button class="ghost ai-forget" id="ai-forget" hidden>forget key</button>
-              <span class="spacer"></span>
-              <button class="ghost" id="ai-pop-close">cancel</button>
-              <button class="primary" id="ai-save">save</button>
+          <div class="user-pop" id="user-pop" hidden role="menu" aria-label="Account menu">
+            <div class="user-pop-row">
+              <img class="user-pop-avatar" id="user-pop-avatar" alt="" />
+              <div class="user-pop-meta">
+                <div class="user-pop-name" id="user-pop-name">—</div>
+                <div class="user-pop-email" id="user-pop-email">—</div>
+              </div>
             </div>
-            <div class="ai-pop-status" id="ai-pop-status"></div>
+            <hr class="user-pop-sep" />
+            <button class="user-pop-item" id="logout-btn">Sign out</button>
           </div>
         </div>
       </div>

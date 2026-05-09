@@ -201,11 +201,19 @@ app.set("trust proxy", 1);
 app.use(express.json({ limit: "16kb" }));
 
 // ---- routes: login + OAuth ----
+const publicDir = path.join(__dirname, "public");
+
 app.get("/login", async (req, res) => {
   // already signed in? bounce home.
   const sess = await loadSession(req).catch(() => null);
   if (sess) return res.redirect("/");
   res.sendFile(path.join(__dirname, "public", "login.html"));
+});
+
+// The login page is intentionally public, so its shared stylesheet must be
+// public too. The app shell and data/scripts stay behind requireAuth below.
+app.get("/styles.css", (req, res) => {
+  res.sendFile(path.join(publicDir, "styles.css"));
 });
 
 app.get("/auth/google", (req, res) => {
@@ -431,7 +439,6 @@ app.post("/api/ai/reflection", requireAuth, async (req, res) => {
 
 // ---- routes: static SPA (auth required) ----
 // Serve known assets explicitly so we don't expose anything outside /public.
-const publicDir = path.join(__dirname, "public");
 app.get(["/", "/index.html"], requireAuth, (req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));
 });
