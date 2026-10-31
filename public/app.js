@@ -663,6 +663,50 @@
     });
   }
 
+  // Books stand on shelves by genre. Each book is a grid of chapter squares
+  // 8 tall, filled bottom-up column by column, so it stands on the shelf and
+  // its width shows its length.
+  const SHELVES = [
+    ["law", "history"],
+    ["wisdom", "poetry", "prophecy"],
+    ["gospel", "epistle", "revelation"],
+  ];
+
+  function renderShelfView() {
+    const wrap = document.getElementById("shelves");
+    wrap.innerHTML = "";
+    SHELVES.forEach(cats => {
+      const shelf = document.createElement("section");
+      shelf.className = "shelf";
+      shelf.innerHTML = `
+        <div class="shelf-head">${cats.map(k => `
+          <span class="book-cat"><span class="cat-dot" style="background:${CATEGORIES[k].color}"></span>${CATEGORIES[k].label}</span>
+        `).join("")}</div>
+        <div class="shelf-books"></div>
+      `;
+      const row = shelf.querySelector(".shelf-books");
+      BOOKS.filter(b => cats.includes(b.category)).forEach(book => {
+        const div = document.createElement("div");
+        div.className = "shelf-book";
+        div.style.setProperty("--c", CATEGORIES[book.category].color);
+        div.innerHTML = `<div class="shelf-grid"></div><div class="shelf-spine" title="${book.name}">${book.abbr}</div>`;
+        const grid = div.firstElementChild;
+        for (let c = 1; c <= book.chapters; c++) {
+          const id = `${book.abbr} ${c}`;
+          const read = chapterIsRead(id);
+          const sq = document.createElement("button");
+          sq.className = "shelf-ch" + (read ? " read" : "");
+          sq.style.gridArea = `${8 - (c - 1) % 8} / ${Math.ceil(c / 8)}`;
+          sq.title = id + (CHAPTER_BY_ID[id].notable ? ` — ${CHAPTER_BY_ID[id].notable}` : "") + (read ? " · read" : "");
+          sq.addEventListener("click", () => openReader(id));
+          grid.appendChild(sq);
+        }
+        row.appendChild(div);
+      });
+      wrap.appendChild(shelf);
+    });
+  }
+
   function renderProgressView() {
     const wrap = document.getElementById("books");
     wrap.innerHTML = "";
@@ -1115,6 +1159,7 @@
       a.classList.toggle("active", a.dataset.view === name);
     });
     if (name === "progress") renderProgressView();
+    if (name === "shelf")    renderShelfView();
   }
 
   // ---------- master render ----------
@@ -1128,6 +1173,9 @@
     renderSuggestions(recs);
     if (document.querySelector('.view[data-view="progress"].active')) {
       renderProgressView();
+    }
+    if (document.querySelector('.view[data-view="shelf"].active')) {
+      renderShelfView();
     }
   }
 

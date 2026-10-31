@@ -15,6 +15,7 @@
       <div class="brand">Bible Adventure</div>
       <nav class="nav">
         <a href="#" data-view="path"     class="nav-link active">Path</a>
+        <a href="#" data-view="shelf"    class="nav-link">Shelf</a>
         <a href="#" data-view="progress" class="nav-link">Progress</a>
         <a href="#" data-view="about"    class="nav-link">About</a>
       </nav>
@@ -118,6 +119,15 @@
           <div class="hint">click any chapter — read at your own pace</div>
         </div>
       </section>
+    </main>
+
+    <!-- ============ SHELF ============ -->
+    <main class="view view-shelf" data-view="shelf">
+      <section class="progress-head">
+        <h2>Your shelf</h2>
+        <p class="muted">Every book of the Bible, as wide as it is long. Each square is a chapter — the ones you've read light up.</p>
+      </section>
+      <div class="graph-section shelves" id="shelves"></div>
     </main>
 
     <!-- ============ PROGRESS ============ -->

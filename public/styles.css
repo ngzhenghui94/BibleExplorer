@@ -1279,6 +1279,40 @@ html, body {
 .primary:hover { filter: brightness(1.08); }
 .primary:active { transform: translateY(1px); }
 
+/* ==== shelf view ==== */
+.shelves { padding: 22px 24px 4px; }
+.shelf { margin-bottom: 26px; }
+.shelf-head { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 12px; }
+.shelf-books { display: flex; flex-wrap: wrap; row-gap: 18px; }
+.shelf-book { display: flex; flex-direction: column; align-items: center; }
+.shelf-grid {
+  display: grid;
+  grid-template-rows: repeat(8, 10px);
+  grid-auto-columns: 10px;
+  gap: 2px;
+  padding: 0 3px 4px;
+  border-bottom: 2px solid var(--line); /* touching borders join into one shelf */
+}
+.shelf-ch {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--c) 20%, transparent);
+}
+.shelf-ch:hover { background: color-mix(in srgb, var(--c) 60%, transparent); }
+.shelf-ch.read { background: var(--c); }
+.shelf-spine {
+  writing-mode: vertical-rl;
+  margin-top: 6px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink-3);
+}
+
 /* ==== responsive ==== */
 @media (max-width: 900px) {
   .app { padding: 14px 16px 60px; }
