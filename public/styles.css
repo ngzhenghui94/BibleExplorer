@@ -953,6 +953,21 @@ html, body {
   color: var(--ink);
 }
 
+/* full chapter text */
+.scripture {
+  font-family: "Fraunces", serif;
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--ink);
+  white-space: pre-line; /* the API marks poetry lines with \n */
+}
+.scripture sup {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  color: var(--ink-3);
+  margin: 0 3px 0 2px;
+}
+
 /* verses list */
 .verse-list {
   list-style: none;

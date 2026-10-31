@@ -720,6 +720,7 @@
 
     const body = document.getElementById("reader-body");
     body.innerHTML = readerBody(ch);
+    loadScripture(ch, body.querySelector(".scripture"));
 
     // Wire cross-reference chips inside the freshly rendered body
     body.querySelectorAll("[data-xref]").forEach(btn => {
@@ -783,6 +784,31 @@
     if (msg.includes("429") || msg.includes("502")) return "AI is busy — try again in a moment.";
     if (msg.includes("unauthenticated")) return "Session expired — please sign in again.";
     return "AI request failed. Please try again.";
+  }
+
+  // bible-api.com book codes, in BOOKS order. The /data endpoint avoids its
+  // parser reading single-chapter books ("Jude 1") as verse 1.
+  const USFM = "GEN EXO LEV NUM DEU JOS JDG RUT 1SA 2SA 1KI 2KI 1CH 2CH EZR NEH EST JOB PSA PRO ECC SNG ISA JER LAM EZK DAN HOS JOL AMO OBA JON MIC NAM HAB ZEP HAG ZEC MAL MAT MRK LUK JHN ACT ROM 1CO 2CO GAL EPH PHP COL 1TH 2TH 1TI 2TI TIT PHM HEB JAS 1PE 2PE 1JN 2JN 3JN JUD REV".split(" ");
+  const scriptureCache = new Map();
+
+  async function loadScripture(ch, el) {
+    try {
+      let verses = scriptureCache.get(ch.id);
+      if (!verses) {
+        const res = await fetch(`https://bible-api.com/data/web/${USFM[ch.bookIndex]}/${ch.chapter}`);
+        if (!res.ok) throw new Error(res.status);
+        verses = (await res.json()).verses;
+        scriptureCache.set(ch.id, verses);
+      }
+      if (openChapterId !== ch.id) return; // reader moved on while we waited
+      el.replaceChildren(...verses.flatMap(v => {
+        const n = document.createElement("sup");
+        n.textContent = v.verse;
+        return [n, document.createTextNode(v.text.replace(/\n+/g, "\n"))];
+      }));
+    } catch {
+      if (openChapterId === ch.id) el.textContent = "Couldn't load the text right now — use “read online ↗” below.";
+    }
   }
 
   function bibleGatewayUrl(ch) {
@@ -888,7 +914,14 @@
       ? `<p class="muted small reader-foot-note">Read it slowly — out loud, if you can. Mark it read when you're done.</p>`
       : `<p class="muted small reader-foot-note">No notes for this one — just open it and read. Mark it read when you're done.</p>`;
 
-    return bookStrip + summaryBlock + versesBlock + xrefBlock + reflectBlock + closing;
+    const scriptureBlock = `
+      <section class="reader-section">
+        <div class="reader-label">${ch.book} ${ch.chapter} · World English Bible</div>
+        <div class="scripture">Loading…</div>
+      </section>
+    `;
+
+    return bookStrip + summaryBlock + scriptureBlock + versesBlock + xrefBlock + reflectBlock + closing;
   }
 
   function closeReader() {
